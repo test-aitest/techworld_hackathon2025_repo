@@ -24,7 +24,7 @@ struct CanvasView: View {
                         .foregroundColor(.blue)
                 }
                 .disabled(canvasView.undoManager?.canUndo == false)
-
+                
                 Button(action: {
                     canvasView.undoManager?.redo()
                 }) {
@@ -33,9 +33,9 @@ struct CanvasView: View {
                         .foregroundColor(.blue)
                 }
                 .disabled(canvasView.undoManager?.canRedo == false)
-
+                
                 Spacer()
-
+                
                 Button(action: {
                     canvasView.drawing = PKDrawing()
                 }) {
@@ -46,10 +46,41 @@ struct CanvasView: View {
             }
             .padding()
             .background(Color(.systemGray6))
+            
+            // 画面分割: 2/3 キャンバス、1/3 テキストエリア
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    // キャンバスエリア（3/4）
+                    DrawingCanvas(canvasView: $canvasView, toolPicker: $toolPicker)
+                        .frame(width: geometry.size.width, height: geometry.size.height * 3 / 4)
+                        .clipped()
+                    
+                    // テキストエリア（1/4）
+                    HStack(spacing: 12) {
+                        // バナナキャラクター
+                        Image("banana")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 100, height: 100)
 
-            // キャンバス
-            DrawingCanvas(canvasView: $canvasView, toolPicker: $toolPicker)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("描いたイラストの説明")
+                                .font(.title3)
+                                .fontWeight(.bold)
+
+                            ScrollView {
+                                Text("ここに描いたイラストの説明や、キャラクターからのメッセージが表示されます。\n\n自由に絵を描いて楽しんでください！")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding()
+                    .frame(height: geometry.size.height / 4)
+                    .background(Color(.systemGray6))
+                }
+            }
         }
         .navigationTitle("お絵描き")
         .navigationBarTitleDisplayMode(.inline)
