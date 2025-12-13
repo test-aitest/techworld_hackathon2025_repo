@@ -11,6 +11,7 @@ import PencilKit
 struct CanvasView: View {
     @State private var canvasView = PKCanvasView()
     @State private var toolPicker = PKToolPicker()
+    @StateObject private var webSocketManager = WebSocketManager()
     
     // アニメーション用の状態変数
     @State private var isFloating = false
@@ -132,11 +133,18 @@ struct CanvasView: View {
         .navigationTitle("お絵描き")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // WebSocketに接続
+            webSocketManager.connect()
+            
             if !canvasView.drawing.bounds.isEmpty {
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                     isFloating = true
                 }
             }
+        }
+        .onDisappear {
+            // WebSocketを切断
+            webSocketManager.disconnect()
         }
     }
 }
