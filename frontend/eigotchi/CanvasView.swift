@@ -12,6 +12,7 @@ struct CanvasView: View {
     @State private var canvasView = PKCanvasView()
     @State private var toolPicker = PKToolPicker()
     @StateObject private var webSocketManager = WebSocketManager()
+    @StateObject private var microphoneManager = MicrophoneManager()
     
     // アニメーション用の状態変数
     @State private var isFloating = false
@@ -136,6 +137,22 @@ struct CanvasView: View {
             // WebSocketに接続
             webSocketManager.connect()
             
+            // マイクの音声データをWebSocketに送信
+            microphoneManager.onAudioData = { audioData in
+                webSocketManager.sendData(audioData)
+                print("Sent audio data: \(audioData.count) bytes")
+            }
+            
+            // WebSocket接続後、マイク録音を開始（接続を待つために遅延を長めに）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if microphoneManager.hasPermission {
+                    microphoneManager.startRecording()
+                    print("Microphone recording started")
+                } else {
+                    print("Microphone permission not granted")
+                }
+            }
+            
             if !canvasView.drawing.bounds.isEmpty {
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                     isFloating = true
@@ -143,6 +160,10 @@ struct CanvasView: View {
             }
         }
         .onDisappear {
+            // マイク録音を停止
+            microphoneManager.stopRecording()
+            print("Microphone stopped")
+            
             // WebSocketを切断
             webSocketManager.disconnect()
         }
