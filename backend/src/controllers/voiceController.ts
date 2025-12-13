@@ -4,7 +4,7 @@ export const handleWebSocketConnection = (ws: WebSocket): void => {
   // 接続確認メッセージを送信
   ws.send(JSON.stringify({
     type: 'status',
-    message: 'Connected to WebSocket server'
+    message: 'テスト接続できました🎉'
   }));
 
   // メッセージ受信時の処理（バイナリデータとして受け取る）
