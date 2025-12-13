@@ -75,6 +75,14 @@ struct CanvasView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Button(action: {
+                            
+                        }) {
+                            Image(systemName: "arrow.2.circlepath.circle")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                        }
                     }
                     .padding()
                     .frame(height: geometry.size.height / 4)
