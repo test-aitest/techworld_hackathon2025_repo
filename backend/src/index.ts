@@ -1,20 +1,30 @@
-import express from 'express';
-import homeRoutes from './routes/canvas';
+import { WebSocketServer } from 'ws';
+import type { WebSocket } from 'ws';
+import { handleWebSocketConnection } from './controllers/voiceController';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// WebSocketサーバーを作成
+const wss = new WebSocketServer({ port: PORT });
 
-// Routes
-app.use('/', homeRoutes);
+console.log(`WebSocket server is running on ws://localhost:${PORT}`);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// クライアント接続時の処理
+wss.on('connection', (ws: WebSocket) => {
+  console.log('New WebSocket connection established');
+
+  // コントローラーで接続を処理
+  handleWebSocketConnection(ws);
+
+  // 接続切断時の処理
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+  });
+
+  // エラー処理
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
 });
 
-export default app;
-
+export default wss;
