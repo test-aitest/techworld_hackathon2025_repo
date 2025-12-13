@@ -9,12 +9,17 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        Image("top")
-            .resizable()
-            .scaledToFit()
-            .aspectRatio(4/3, contentMode: .fit)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        NavigationStack {
+            NavigationLink(destination: CanvasView()) {
+                Image("top")
+                    .resizable()
+                    .scaledToFit()
+                    .aspectRatio(4/3, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .buttonStyle(PlainButtonStyle())
             .ignoresSafeArea()
+        }
     }
 }
 
