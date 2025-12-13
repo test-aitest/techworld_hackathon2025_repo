@@ -1,0 +1,351 @@
+//
+//  MouthAnimationView.swift
+//  eigotchi
+//
+//  口をぱくぱく動かすアニメーションビュー
+//
+
+import SwiftUI
+import PencilKit
+import ImageIO
+
+// GIFアニメーション表示用のUIViewRepresentable
+struct GIFImageView: UIViewRepresentable {
+    let gifName: String
+
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+
+        // GIFをAssetsから読み込んで表示
+        if let asset = NSDataAsset(name: gifName) {
+            imageView.image = UIImage.gifImageWithData(asset.data)
+        }
+
+        return imageView
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {
+        // 更新不要
+    }
+}
+
+// UIImage拡張: GIFデータから画像を生成
+extension UIImage {
+    static func gifImageWithData(_ data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            print("GIFソースの作成に失敗")
+            return nil
+        }
+
+        return UIImage.animatedImageWithSource(source)
+    }
+
+    static func animatedImageWithSource(_ source: CGImageSource) -> UIImage? {
+        let count = CGImageSourceGetCount(source)
+        var images = [UIImage]()
+        var duration: TimeInterval = 0.0
+
+        for i in 0..<count {
+            if let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) {
+                let image = UIImage(cgImage: cgImage)
+                images.append(image)
+
+                // フレームの表示時間を取得
+                let frameDuration = UIImage.frameDuration(at: i, source: source)
+                duration += frameDuration
+            }
+        }
+
+        return UIImage.animatedImage(with: images, duration: duration)
+    }
+
+    static func frameDuration(at index: Int, source: CGImageSource) -> TimeInterval {
+        var frameDuration: TimeInterval = 0.1 // デフォルト
+
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [String: Any],
+              let gifProperties = properties[kCGImagePropertyGIFDictionary as String] as? [String: Any] else {
+            return frameDuration
+        }
+
+        if let delayTime = gifProperties[kCGImagePropertyGIFUnclampedDelayTime as String] as? TimeInterval {
+            frameDuration = delayTime
+        } else if let delayTime = gifProperties[kCGImagePropertyGIFDelayTime as String] as? TimeInterval {
+            frameDuration = delayTime
+        }
+
+        return frameDuration
+    }
+}
+
+/// スクリーンショットを使用する口アニメーションビュー
+struct MouthAnimationViewWithImage: View {
+    let screenshot: UIImage
+    let mouthDetection: MouthDetection?
+    @State private var mouthScale: CGFloat = 1.0
+    @State private var isAnimating = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // 検出に使ったスクリーンショットを表示（画面いっぱいに）
+                Image(uiImage: screenshot)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+
+                // 口の部分を検出できた場合、アニメーションレイヤーを追加
+                if let mouth = mouthDetection {
+                    // 1. 元の口を白で隠す
+                    Rectangle()
+                        .fill(Color.white)
+                        .frame(
+                            width: mouth.boundingBox.width * geometry.size.width,
+                            height: mouth.boundingBox.height * geometry.size.height
+                        )
+                        .position(
+                            x: mouth.boundingBox.midX * geometry.size.width,
+                            y: mouth.boundingBox.midY * geometry.size.height
+                        )
+
+                    // 2. アニメーションする口を表示
+                    MouthOverlayViewForImage(
+                        screenshot: screenshot,
+                        mouthBounds: mouth.boundingBox,
+                        scale: mouthScale,
+                        canvasSize: geometry.size
+                    )
+                }
+            }
+        }
+        .onAppear {
+            startMouthAnimation()
+        }
+        .onDisappear {
+            isAnimating = false
+        }
+    }
+
+    private func startMouthAnimation() {
+        guard !isAnimating else { return }
+        isAnimating = true
+
+        // ぱくぱくアニメーション（繰り返し）
+        withAnimation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true)) {
+            mouthScale = 0.7  // 口を少し縮める（閉じる）
+        }
+    }
+}
+
+/// GIF画像を使った口アニメーション
+struct MouthOverlayViewForImage: View {
+    let screenshot: UIImage
+    let mouthBounds: CGRect  // 正規化座標 (0.0-1.0)
+    let scale: CGFloat
+    let canvasSize: CGSize
+
+    var body: some View {
+        GeometryReader { geometry in
+            // AssetsからGIFアニメーションを読み込み
+            GIFImageView(gifName: "animated_mouth")
+                .frame(
+                    width: mouthBounds.width * geometry.size.width,
+                    height: mouthBounds.height * geometry.size.height
+                )
+                .scaleEffect(y: scale, anchor: .center)
+                .position(
+                    x: mouthBounds.midX * geometry.size.width,
+                    y: mouthBounds.midY * geometry.size.height
+                )
+        }
+    }
+}
+
+struct MouthAnimationView: View {
+    let drawing: PKDrawing
+    let mouthDetection: MouthDetection?
+    @State private var mouthScale: CGFloat = 1.0
+    @State private var isAnimating = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // 元の描画全体を表示
+                DrawingImageView(drawing: drawing)
+
+                // 口の部分を検出できた場合、アニメーションレイヤーを追加
+                if let mouth = mouthDetection {
+                    // デバッグ情報を表示（onAppearで一度だけ）
+                    // let _ = print("🎯 検出された口の位置:")
+                    // let _ = print("  - 中心X: \(mouth.boundingBox.midX) (画面上: \(mouth.boundingBox.midX * geometry.size.width)px)")
+                    // let _ = print("  - 中心Y: \(mouth.boundingBox.midY) (画面上: \(mouth.boundingBox.midY * geometry.size.height)px)")
+                    // let _ = print("  - 幅: \(mouth.boundingBox.width) (画面上: \(mouth.boundingBox.width * geometry.size.width)px)")
+                    // let _ = print("  - 高さ: \(mouth.boundingBox.height) (画面上: \(mouth.boundingBox.height * geometry.size.height)px)")
+                    // let _ = print("  - キャンバスサイズ: \(geometry.size)")
+
+                    // デバッグ: 検出領域を赤い枠で表示
+                    Rectangle()
+                        .stroke(Color.red, lineWidth: 3)
+                        .frame(
+                            width: mouth.boundingBox.width * geometry.size.width,
+                            height: mouth.boundingBox.height * geometry.size.height
+                        )
+                        .position(
+                            x: mouth.boundingBox.midX * geometry.size.width,
+                            y: mouth.boundingBox.midY * geometry.size.height
+                        )
+
+                    // 1. 元の口を青色で隠す（デバッグ用：白→青に変更して見やすくする）
+                    Rectangle()
+                        .fill(Color.blue.opacity(0.8))
+                        .frame(
+                            width: mouth.boundingBox.width * geometry.size.width,
+                            height: mouth.boundingBox.height * geometry.size.height
+                        )
+                        .position(
+                            x: mouth.boundingBox.midX * geometry.size.width,
+                            y: mouth.boundingBox.midY * geometry.size.height
+                        )
+
+                    // 2. アニメーションする口を表示
+                    MouthOverlayView(
+                        drawing: drawing,
+                        mouthBounds: mouth.boundingBox,
+                        scale: mouthScale,
+                        canvasSize: geometry.size
+                    )
+                }
+            }
+        }
+        .onAppear {
+            startMouthAnimation()
+        }
+        .onDisappear {
+            isAnimating = false
+        }
+    }
+
+    private func startMouthAnimation() {
+        guard !isAnimating else { return }
+        isAnimating = true
+
+        // ぱくぱくアニメーション（繰り返し）
+        withAnimation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true)) {
+            mouthScale = 0.7  // 口を少し縮める（閉じる）
+        }
+    }
+}
+
+/// PKDrawingを画像として表示するビュー
+struct DrawingImageView: View {
+    let drawing: PKDrawing
+
+    var body: some View {
+        let image = drawing.image(from: drawing.bounds, scale: UIScreen.main.scale)
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+    }
+}
+
+/// 口の部分にオーバーレイして、スケールアニメーションを適用
+struct MouthOverlayView: View {
+    let drawing: PKDrawing
+    let mouthBounds: CGRect  // 正規化座標 (0.0-1.0)
+    let scale: CGFloat
+    let canvasSize: CGSize
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let mouthImage = extractMouthImage() {
+                Image(uiImage: mouthImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(
+                        width: mouthBounds.width * geometry.size.width,
+                        height: mouthBounds.height * geometry.size.height
+                    )
+                    .scaleEffect(y: scale, anchor: .center)
+                    .position(
+                        x: (mouthBounds.midX) * geometry.size.width,
+                        y: (mouthBounds.midY) * geometry.size.height
+                    )
+                    // 元の描画を隠すためのブレンドモード
+                    .blendMode(.normal)
+            }
+        }
+    }
+
+    /// 口の領域だけを切り出した画像を生成
+    private func extractMouthImage() -> UIImage? {
+        let fullImage = drawing.image(from: drawing.bounds, scale: UIScreen.main.scale)
+
+        // 正規化座標を実際のピクセル座標に変換
+        let imageSize = fullImage.size
+        let pixelBounds = CGRect(
+            x: mouthBounds.origin.x * imageSize.width,
+            y: mouthBounds.origin.y * imageSize.height,
+            width: mouthBounds.width * imageSize.width,
+            height: mouthBounds.height * imageSize.height
+        )
+
+        // 画像から口の部分を切り出し
+        guard let cgImage = fullImage.cgImage?.cropping(to: pixelBounds) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
+    }
+}
+
+// 口をぱくぱくさせるための拡張機能を持つCanvasView
+struct AnimatedCanvasView: View {
+    @Binding var canvasView: PKCanvasView
+    @State private var mouthDetection: MouthDetection?
+    @State private var isDetecting = false
+    @State private var showAnimation = false
+    @State private var geminiAPIKey: String = ""
+
+    var body: some View {
+        ZStack {
+            if showAnimation, let drawing = canvasView.drawing as PKDrawing? {
+                MouthAnimationView(drawing: drawing, mouthDetection: mouthDetection)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    func detectAndAnimate(apiKey: String) async {
+        guard !isDetecting else { return }
+        isDetecting = true
+        defer { isDetecting = false }
+
+        // Canvas描画を画像に変換
+        let drawing = canvasView.drawing
+        guard !drawing.bounds.isEmpty else {
+            print("Drawing is empty")
+            return
+        }
+
+        let image = drawing.image(from: drawing.bounds, scale: UIScreen.main.scale)
+
+        // Gemini APIで口を検出
+        let service = GeminiService(apiKey: apiKey)
+        do {
+            if let detection = try await service.detectMouth(in: image) {
+                await MainActor.run {
+                    self.mouthDetection = detection
+                    withAnimation {
+                        self.showAnimation = true
+                    }
+                }
+            } else {
+                print("No mouth detected")
+            }
+        } catch {
+            print("Error detecting mouth: \(error)")
+        }
+    }
+}
