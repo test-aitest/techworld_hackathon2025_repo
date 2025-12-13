@@ -32,6 +32,8 @@ class WebSocketManager: ObservableObject {
         
         let session = URLSession(configuration: .default)
         webSocketTask = session.webSocketTask(with: url)
+        
+        // エラーハンドラを設定
         webSocketTask?.resume()
         
         DispatchQueue.main.async {
@@ -44,7 +46,7 @@ class WebSocketManager: ObservableObject {
         receiveMessage()
         
         // 接続確認メッセージを送信（オプション）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.sendMessage("{\"type\":\"connect\",\"message\":\"Hello from iOS\"}")
         }
     }
@@ -73,6 +75,7 @@ class WebSocketManager: ObservableObject {
     
     func sendData(_ data: Data) {
         guard let webSocketTask = webSocketTask else {
+            print("WebSocket is not connected, cannot send data")
             connectionError = "WebSocket is not connected"
             return
         }
@@ -80,6 +83,7 @@ class WebSocketManager: ObservableObject {
         let message = URLSessionWebSocketTask.Message.data(data)
         webSocketTask.send(message) { error in
             if let error = error {
+                print("Send data error: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     self.connectionError = "Send error: \(error.localizedDescription)"
                 }
