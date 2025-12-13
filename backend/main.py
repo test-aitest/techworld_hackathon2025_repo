@@ -40,9 +40,9 @@ app.add_middleware(
 async def chat(audio: UploadFile = File(...)):
     """
     音声ファイルを受け取り、AI応答の音声を返す
-    
+
     - **audio**: 音声ファイル（m4a推奨）
-    
+
     Returns:
         - audio/mpeg: MP3音声データ
         - X-Transcript: ユーザーの発話テキスト（URLエンコード済み）
@@ -50,26 +50,26 @@ async def chat(audio: UploadFile = File(...)):
     """
     try:
         logger.info(f"Received audio file: {audio.filename}")
-        
+
         # 1. 音声ファイル読み込み
         audio_bytes = await audio.read()
         logger.info(f"Audio size: {len(audio_bytes)} bytes")
-        
+
         # 2. STT: 音声 → テキスト
         logger.info("Starting transcription...")
         transcript = await transcribe_audio(audio_bytes, audio.filename or "audio.m4a")
         logger.info(f"Transcript: {transcript}")
-        
+
         # 3. LLM: 応答生成
         logger.info("Generating response...")
         reply = await generate_response(transcript)
         logger.info(f"Reply: {reply}")
-        
+
         # 4. TTS: テキスト → 音声
         logger.info("Synthesizing speech...")
         audio_response = await synthesize_speech(reply)
         logger.info(f"Audio response size: {len(audio_response)} bytes")
-        
+
         # 5. レスポンス返却
         return Response(
             content=audio_response,
@@ -80,7 +80,7 @@ async def chat(audio: UploadFile = File(...)):
                 "Access-Control-Expose-Headers": "X-Transcript, X-Reply"
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -90,24 +90,24 @@ async def chat(audio: UploadFile = File(...)):
 async def chat_json(audio: UploadFile = File(...)):
     """
     音声ファイルを受け取り、JSON形式で応答を返す（デバッグ用）
-    
+
     音声データはBase64エンコードされて返される
     """
     import base64
-    
+
     try:
         audio_bytes = await audio.read()
-        
+
         transcript = await transcribe_audio(audio_bytes, audio.filename or "audio.m4a")
         reply = await generate_response(transcript)
         audio_response = await synthesize_speech(reply)
-        
+
         return {
             "transcript": transcript,
             "reply": reply,
             "audio_base64": base64.b64encode(audio_response).decode("utf-8")
         }
-        
+
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
