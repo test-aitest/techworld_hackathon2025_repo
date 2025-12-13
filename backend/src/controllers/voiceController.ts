@@ -1,5 +1,11 @@
 import type { WebSocket } from 'ws';
 
+// 受信データの型定義
+interface AudioMessagePayload {
+  userName: string;
+  audioMessage: string;
+}
+
 export const handleWebSocketConnection = (ws: WebSocket): void => {
   // 接続確認メッセージを送信
   ws.send(JSON.stringify({
