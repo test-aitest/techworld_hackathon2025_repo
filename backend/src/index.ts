@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import homeRoutes from './routes/canvas';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,13 +9,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.get('/', (req: Request, res: Response) => {
-  res.json({ message: 'Hello, TypeScript Express!' });
-});
-
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok' });
-});
+app.use('/', homeRoutes);
 
 // Start server
 app.listen(PORT, () => {
@@ -22,3 +17,4 @@ app.listen(PORT, () => {
 });
 
 export default app;
+
