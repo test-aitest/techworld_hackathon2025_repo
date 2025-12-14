@@ -12,22 +12,30 @@ import ImageIO
 // GIFアニメーション表示用のUIViewRepresentable
 struct GIFImageView: UIViewRepresentable {
     let gifName: String
+    let isAnimating: Bool  // アニメーション制御用
 
     func makeUIView(context: Context) -> UIImageView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
-
-        // GIFをAssetsから読み込んで表示
-        if let asset = NSDataAsset(name: gifName) {
-            imageView.image = UIImage.gifImageWithData(asset.data)
-        }
-
         return imageView
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
-        // 更新不要
+        guard let asset = NSDataAsset(name: gifName) else { return }
+
+        if isAnimating {
+            // アニメーションGIFを表示
+            if uiView.image?.images == nil {
+                uiView.image = UIImage.gifImageWithData(asset.data)
+            }
+        } else {
+            // 静止画（最初のフレーム）を表示
+            if let source = CGImageSourceCreateWithData(asset.data as CFData, nil),
+               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                uiView.image = UIImage(cgImage: cgImage)
+            }
+        }
     }
 }
 
@@ -83,8 +91,14 @@ extension UIImage {
 struct MouthAnimationViewWithImage: View {
     let screenshot: UIImage
     let mouthDetection: MouthDetection?
+    let openAIAPIKey: String?
+    let onSpeechComplete: (() -> Void)?
+    @Binding var userIsSpeaking: Bool  // ユーザーが話しているかどうか
+    @Binding var isGIFAnimating: Bool  // GIFアニメーション制御
     @State private var mouthScale: CGFloat = 1.0
     @State private var isAnimating = false
+    @State private var showPromptMessage = false  // 催促メッセージ表示
+    @State private var ttsService: OpenAITTSService?
 
     var body: some View {
         GeometryReader { geometry in
@@ -95,6 +109,7 @@ struct MouthAnimationViewWithImage: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
+                    .zIndex(0)  // 背景レイヤー
 
                 // 口の部分を検出できた場合、アニメーションレイヤーを追加
                 if let mouth = mouthDetection {
@@ -109,22 +124,80 @@ struct MouthAnimationViewWithImage: View {
                             x: mouth.boundingBox.midX * geometry.size.width,
                             y: mouth.boundingBox.midY * geometry.size.height
                         )
+                        .zIndex(1)
 
                     // 2. アニメーションする口を表示
                     MouthOverlayViewForImage(
                         screenshot: screenshot,
                         mouthBounds: mouth.boundingBox,
                         scale: mouthScale,
-                        canvasSize: geometry.size
+                        canvasSize: geometry.size,
+                        isGIFAnimating: isGIFAnimating
                     )
+                    .zIndex(2)
+                }
+
+                // 催促メッセージ（下部から表示）- 最上位レイヤー
+                if showPromptMessage {
+                    VStack {
+                        Spacer()
+
+                        Image("prompt_speech_bubble")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: geometry.size.width * 0.8)
+                            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                            .padding(.horizontal, 30)
+                            .padding(.bottom, 60)
+                    }
+                    .zIndex(100)  // 最上位レイヤーに表示
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
         .onAppear {
             startMouthAnimation()
+
+            // OpenAI TTSで「こんにちは」を再生
+            if let apiKey = openAIAPIKey {
+                ttsService = OpenAITTSService(apiKey: apiKey)
+                Task {
+                    do {
+                        try await ttsService?.speak(text: "こんにちは") {
+                            // 音声再生が終了したらGIFアニメーションを停止（ビューは表示したまま）
+                            self.isGIFAnimating = false
+
+                            // 少し待ってから催促メッセージを表示
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                                    self.showPromptMessage = true
+                                }
+
+                                // 5秒後にメッセージを自動的に消す
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                                        self.showPromptMessage = false
+                                    }
+                                }
+                            }
+                        }
+                    } catch {
+                        print("TTS エラー: \(error)")
+                    }
+                }
+            }
         }
         .onDisappear {
             isAnimating = false
+            ttsService?.stop()
+        }
+        .onChange(of: userIsSpeaking) { _, newValue in
+            // ユーザーが話し始めたらメッセージを消す
+            if newValue && showPromptMessage {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showPromptMessage = false
+                }
+            }
         }
     }
 
@@ -145,11 +218,12 @@ struct MouthOverlayViewForImage: View {
     let mouthBounds: CGRect  // 正規化座標 (0.0-1.0)
     let scale: CGFloat
     let canvasSize: CGSize
+    let isGIFAnimating: Bool
 
     var body: some View {
         GeometryReader { geometry in
             // AssetsからGIFアニメーションを読み込み
-            GIFImageView(gifName: "animated_mouth")
+            GIFImageView(gifName: "animated_mouth", isAnimating: isGIFAnimating)
                 .frame(
                     width: mouthBounds.width * geometry.size.width,
                     height: mouthBounds.height * geometry.size.height
@@ -166,8 +240,12 @@ struct MouthOverlayViewForImage: View {
 struct MouthAnimationView: View {
     let drawing: PKDrawing
     let mouthDetection: MouthDetection?
+    let openAIAPIKey: String?
+    let onSpeechComplete: (() -> Void)?
     @State private var mouthScale: CGFloat = 1.0
     @State private var isAnimating = false
+    @State private var isGIFAnimating = true  // GIFアニメーション制御
+    @State private var ttsService: OpenAITTSService?
 
     var body: some View {
         GeometryReader { geometry in
@@ -221,9 +299,25 @@ struct MouthAnimationView: View {
         }
         .onAppear {
             startMouthAnimation()
+
+            // OpenAI TTSで「こんにちは」を再生
+            if let apiKey = openAIAPIKey {
+                ttsService = OpenAITTSService(apiKey: apiKey)
+                Task {
+                    do {
+                        try await ttsService?.speak(text: "こんにちは") {
+                            // 音声再生が終了したらスケールアニメーションを停止（ビューは表示したまま）
+                            self.isAnimating = false
+                        }
+                    } catch {
+                        print("TTS エラー: \(error)")
+                    }
+                }
+            }
         }
         .onDisappear {
             isAnimating = false
+            ttsService?.stop()
         }
     }
 
@@ -307,12 +401,22 @@ struct AnimatedCanvasView: View {
     @State private var isDetecting = false
     @State private var showAnimation = false
     @State private var geminiAPIKey: String = ""
+    @State private var openAIAPIKey: String = ""
 
     var body: some View {
         ZStack {
             if showAnimation, let drawing = canvasView.drawing as PKDrawing? {
-                MouthAnimationView(drawing: drawing, mouthDetection: mouthDetection)
-                    .transition(.opacity)
+                MouthAnimationView(
+                    drawing: drawing,
+                    mouthDetection: mouthDetection,
+                    openAIAPIKey: openAIAPIKey.isEmpty ? nil : openAIAPIKey,
+                    onSpeechComplete: {
+                        withAnimation {
+                            showAnimation = false
+                        }
+                    }
+                )
+                .transition(.opacity)
             }
         }
     }
