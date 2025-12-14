@@ -18,6 +18,9 @@ struct ReadingCanvasView: View {
     @State private var capturedScreenshot: UIImage?  // キャンバスのスクリーンショット
     @State private var hasDrawing = false  // 描画があるかどうか
 
+    // Gemini API設定
+    private let geminiAPIKey = "AIzaSyCFEjaPsldMJPhkuvKvtAKD9hGV8dyoL7g"
+
     var body: some View {
         VStack(spacing: 0) {
             // トップツールバー
@@ -157,6 +160,26 @@ struct ReadingCanvasView: View {
         // 浮かぶアニメーション開始
         withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
             isFloating = true
+        }
+
+        // 画像認識を実行（非同期）
+        Task {
+            await recognizeDrawing(screenshot: screenshot)
+        }
+    }
+
+    /// 描かれた絵を認識してコンソールに出力
+    @MainActor
+    private func recognizeDrawing(screenshot: UIImage) async {
+        let service = GeminiService(apiKey: geminiAPIKey)
+
+        do {
+            print("🔍 画像認識を開始...")
+            let description = try await service.recognizeDrawing(in: screenshot)
+            print("✅ 認識結果: \(description)")
+        } catch {
+            print("❌ 画像認識エラー: \(error)")
+            print("🔧 エラー詳細: \(error.localizedDescription)")
         }
     }
 
