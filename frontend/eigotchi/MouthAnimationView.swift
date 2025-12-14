@@ -223,7 +223,7 @@ struct MouthOverlayViewForImage: View {
     var body: some View {
         GeometryReader { geometry in
             // AssetsからGIFアニメーションを読み込み
-            GIFImageView(gifName: "animated_mouth", isAnimating: isGIFAnimating)
+            GIFImageView(gifName: "animated_mouth2", isAnimating: isGIFAnimating)
                 .frame(
                     width: mouthBounds.width * geometry.size.width,
                     height: mouthBounds.height * geometry.size.height

@@ -13,7 +13,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                NavigationLink(destination: CanvasView()) {
+                NavigationLink(destination: SelectView()) {
                     Image("top")
                         .resizable()
                         .scaledToFit()
