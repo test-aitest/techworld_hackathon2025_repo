@@ -13,23 +13,25 @@ struct CanvasView: View {
     @State private var toolPicker = PKToolPicker()
     @StateObject private var webSocketManager = WebSocketManager()
     @StateObject private var microphoneManager = MicrophoneManager()
+    @StateObject private var audioPlayer = AudioPlayer()
     
-    // アニメーション用の状態変数
-    @State private var isFloating = false
-
     // 口のアニメーション関連
     @State private var mouthDetection: MouthDetection?
     @State private var showMouthAnimation = false
     @State private var isDetecting = false
     @State private var capturedScreenshot: UIImage?  // 検出に使ったスクリーンショット
-    @State private var userIsSpeaking = false  // ユーザーが話しているかどうか
-    @State private var speakingTimer: DispatchWorkItem?  // 話している状態のタイマー
-    @State private var isGIFAnimating = true  // GIFアニメーションの状態
+
+    // 音声会話の状態
+    @State private var aiTranscript: String = ""
+    @State private var connectionStatus: String = "未接続"
+
+    // 口のアニメーション制御用
+    @State private var userIsSpeaking = false
+    @State private var isGIFAnimating = true
 
     // TODO: APIキーを安全に管理してください（環境変数、Keychainなど）
     // テスト用のAPIキー（本番環境では絶対に使用しないでください）
     private let geminiAPIKey = "AIzaSyCFEjaPsldMJPhkuvKvtAKD9hGV8dyoL7g"
-    private let openAIAPIKey = "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"
 
     // デバッグ用: スクリーンショットをフォトライブラリに保存するか
     // true にすると、口の検出時に画像が自動保存されます
@@ -60,6 +62,21 @@ struct CanvasView: View {
                 
                 Spacer()
                 
+                // マイクボタン
+                Button(action: {
+                    if microphoneManager.isRecording {
+                        microphoneManager.stopRecording()
+                        userIsSpeaking = false
+                    } else {
+                        microphoneManager.startRecording()
+                        userIsSpeaking = true
+                    }
+                }) {
+                    Image(systemName: microphoneManager.isRecording ? "mic.fill" : "mic.slash")
+                        .font(.title2)
+                        .foregroundColor(microphoneManager.isRecording ? .red : .gray)
+                }
+                
                 Button(action: {
                     if showMouthAnimation {
                         // アニメーション停止
@@ -86,7 +103,6 @@ struct CanvasView: View {
                 
                 Button(action: {
                     canvasView.drawing = PKDrawing()
-                    isFloating = false
                     // アニメーション状態もリセット
                     stopMouthAnimation()
                 }) {
@@ -112,20 +128,32 @@ struct CanvasView: View {
                             MouthAnimationViewWithImage(
                                 screenshot: screenshot,
                                 mouthDetection: mouthDetection,
-                                openAIAPIKey: openAIAPIKey,
-                                onSpeechComplete: nil,  // 音声終了時もビューは表示したまま
+                                openAIAPIKey: APIKeys.openAI,
+                                onSpeechComplete: {
+                                    // 音声再生完了時の処理
+                                    print("音声再生完了")
+                                },
                                 userIsSpeaking: $userIsSpeaking,
                                 isGIFAnimating: $isGIFAnimating
                             )
                             .id("animation") // ビューを識別
                             .transition(.opacity) // フェード効果
-                            .offset(y: isFloating ? -10 : 0)  // 浮かぶアニメーション
                         } else {
-                            // 2. 描画レイヤー（背景透明）
+                            // 2. 描画レイヤー（背景透明・ここだけ動く）
                             DrawingCanvas(
                                 canvasView: $canvasView,
-                                toolPicker: $toolPicker
+                                toolPicker: $toolPicker,
+                                onDrawStart: {
+                                    // 描画開始時の処理（必要に応じて）
+                                },
+                                onDrawEnd: {
+                                    // 描画終了時の処理（必要に応じて）
+                                }
                             )
+                            // ふわふわアニメーションは「DrawingCanvas（描画層）」にのみ適用
+                            // ユーザーが話している時に浮かぶ
+                            .offset(y: userIsSpeaking ? -10 : 0)
+                            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: userIsSpeaking)
                             .id("drawing") // ビューを識別
                             .transition(.opacity) // フェード効果
                         }
@@ -142,25 +170,49 @@ struct CanvasView: View {
                             .frame(width: 100, height: 100)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("描いたイラストの説明")
-                                .font(.title3)
-                                .fontWeight(.bold)
+                            HStack {
+                                Text("AI会話")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                
+                                Spacer()
+                                
+                                // 接続状態インジケーター
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(webSocketManager.isConnected ? Color.green : Color.red)
+                                        .frame(width: 8, height: 8)
+                                    Text(connectionStatus)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                // AI発話中インジケーター
+                                if audioPlayer.isPlaying || webSocketManager.isAISpeaking {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "waveform")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                        Text("発話中")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
                             
                             ScrollView {
-                                Text("ここに描いたイラストの説明や、キャラクターからのメッセージが表示されます。\n\n自由に絵を描いて楽しんでください！")
-                                    .font(.body)
-                                    .foregroundColor(.primary)
+                                if aiTranscript.isEmpty {
+                                    Text("マイクボタンをタップして会話を開始してください 🎤")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    Text(aiTranscript)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        
-//                        Button(action: {
-//                            // アクション
-//                        }) {
-//                            Image(systemName: "arrow.2.circlepath.circle")
-//                                .font(.title2)
-//                                .foregroundColor(.blue)
-//                        }
                     }
                     .padding()
                     .frame(height: geometry.size.height / 4)
@@ -171,59 +223,76 @@ struct CanvasView: View {
         .navigationTitle("お絵描き")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // WebSocketに接続
-            webSocketManager.connect()
-            
-            // マイクの音声データをWebSocketに送信
-            microphoneManager.onAudioData = { audioData in
-                webSocketManager.sendData(audioData)
-                print("Sent audio data: \(audioData.count) bytes")
-
-                // 音声データが来たらユーザーが話していると判断
-                if !userIsSpeaking {
-                    userIsSpeaking = true
-                }
-
-                // 前回のタイマーをキャンセル
-                speakingTimer?.cancel()
-
-                // 1秒後に自動的にfalseに戻す
-                let workItem = DispatchWorkItem {
-                    userIsSpeaking = false
-                }
-                speakingTimer = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
-            }
-            
-            // WebSocket接続後、マイク録音を開始（接続を待つために遅延を長めに）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                if microphoneManager.hasPermission {
-                    microphoneManager.startRecording()
-                    print("Microphone recording started")
-                } else {
-                    print("Microphone permission not granted")
-                }
-            }
+            setupVoiceChat()
         }
         .onDisappear {
-            // マイク録音を停止
-            microphoneManager.stopRecording()
-            print("Microphone stopped")
-
-            // WebSocketを切断
-            webSocketManager.disconnect()
-
-            // タイマーをキャンセル
-            speakingTimer?.cancel()
+            cleanupVoiceChat()
         }
-        .onChange(of: isGIFAnimating) { _, newValue in
-            // GIFアニメーションが停止したら、浮かぶアニメーションも停止
-            if !newValue {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    isFloating = false
-                }
+    }
+    
+    // MARK: - Voice Chat Setup
+    
+    private func setupVoiceChat() {
+        // WebSocketコールバックの設定
+        webSocketManager.onAudioDataReceived = { audioData in
+            // 受信した音声データを再生
+            audioPlayer.play(pcmData: audioData)
+        }
+        
+        webSocketManager.onTranscriptReceived = { text, isDone in
+            // 文字起こしテキストを表示
+            if isDone {
+                aiTranscript = text
+            } else {
+                aiTranscript = text + "..."
             }
         }
+        
+        webSocketManager.onStatusReceived = { status in
+            connectionStatus = status
+        }
+        
+        // WebSocketに接続
+        webSocketManager.connect()
+        connectionStatus = "接続中..."
+        
+        // マイクの音声データをWebSocketに送信
+        microphoneManager.onAudioData = { audioData in
+            webSocketManager.sendData(audioData)
+        }
+        
+        // WebSocket接続後、マイク録音を開始
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if webSocketManager.isConnected {
+                connectionStatus = "接続完了"
+
+                if microphoneManager.hasPermission {
+                    microphoneManager.startRecording()
+                    userIsSpeaking = true
+                    print("✅ Microphone recording started")
+                } else {
+                    print("⚠️ Microphone permission not granted")
+                    connectionStatus = "マイク権限がありません"
+                }
+            } else {
+                connectionStatus = "接続失敗"
+            }
+        }
+    }
+    
+    private func cleanupVoiceChat() {
+        // マイク録音を停止
+        microphoneManager.stopRecording()
+        userIsSpeaking = false
+        print("🎤 Microphone stopped")
+        
+        // 音声再生を停止
+        audioPlayer.stop()
+        print("🔊 Audio player stopped")
+        
+        // WebSocketを切断
+        webSocketManager.disconnect()
+        print("🔌 WebSocket disconnected")
     }
 
     /// 口を検出してアニメーションを開始
@@ -239,8 +308,6 @@ struct CanvasView: View {
             showMouthAnimation = false
             mouthDetection = nil
             capturedScreenshot = nil
-            isFloating = false  // 浮かぶアニメーションも停止
-            isGIFAnimating = true  // 次回のために初期化
         }
     }
 
@@ -283,14 +350,8 @@ struct CanvasView: View {
 
                 self.capturedScreenshot = screenshot  // スクリーンショットを保存
                 self.mouthDetection = detection
-                self.isGIFAnimating = true  // GIFアニメーションを開始
                 withAnimation {
                     self.showMouthAnimation = true
-                }
-
-                // 浮かぶアニメーションを開始
-                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                    self.isFloating = true
                 }
             } else {
                 print("⚠️ 口が検出できませんでした")
@@ -337,38 +398,53 @@ struct CanvasView: View {
 struct DrawingCanvas: UIViewRepresentable {
     @Binding var canvasView: PKCanvasView
     @Binding var toolPicker: PKToolPicker
-
+    
+    var onDrawStart: () -> Void
+    var onDrawEnd: () -> Void
+    
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-
+    
     func makeUIView(context: Context) -> PKCanvasView {
         canvasView.drawingPolicy = .anyInput
-
-        // キャンバス自体の背景を透明にする
+        
+        // ★ 変更点2: キャンバス自体の背景を透明にする
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
-
+        
         canvasView.delegate = context.coordinator
-
+        canvasView.drawingGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.handleDrawingGesture(_:)))
+        
         toolPicker.addObserver(canvasView)
         toolPicker.setVisible(true, forFirstResponder: canvasView)
         canvasView.becomeFirstResponder()
-
+        
         return canvasView
     }
-
+    
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
         // 更新処理なし
     }
-
+    
     class Coordinator: NSObject, PKCanvasViewDelegate {
         var parent: DrawingCanvas
-
+        
         init(_ parent: DrawingCanvas) {
             self.parent = parent
         }
-
+        
+        @objc func handleDrawingGesture(_ gesture: UIGestureRecognizer) {
+            switch gesture.state {
+            case .began:
+                parent.onDrawStart()
+            case .ended, .cancelled, .failed:
+                parent.onDrawEnd()
+            default:
+                break
+            }
+        }
+        
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             print("Drawing data changed")
         }
