@@ -13,6 +13,7 @@ struct CanvasView: View {
     @State private var toolPicker = PKToolPicker()
     @StateObject private var webSocketManager = WebSocketManager()
     @StateObject private var microphoneManager = MicrophoneManager()
+    @StateObject private var audioPlayer = AudioPlayer()
     
     // アニメーション用の状態変数
     @State private var isFloating = false
@@ -22,6 +23,10 @@ struct CanvasView: View {
     @State private var showMouthAnimation = false
     @State private var isDetecting = false
     @State private var capturedScreenshot: UIImage?  // 検出に使ったスクリーンショット
+
+    // 音声会話の状態
+    @State private var aiTranscript: String = ""
+    @State private var connectionStatus: String = "未接続"
 
     // TODO: APIキーを安全に管理してください（環境変数、Keychainなど）
     // テスト用のAPIキー（本番環境では絶対に使用しないでください）
@@ -55,6 +60,19 @@ struct CanvasView: View {
                 .disabled(canvasView.undoManager?.canRedo == false)
                 
                 Spacer()
+                
+                // マイクボタン
+                Button(action: {
+                    if microphoneManager.isRecording {
+                        microphoneManager.stopRecording()
+                    } else {
+                        microphoneManager.startRecording()
+                    }
+                }) {
+                    Image(systemName: microphoneManager.isRecording ? "mic.fill" : "mic.slash")
+                        .font(.title2)
+                        .foregroundColor(microphoneManager.isRecording ? .red : .gray)
+                }
                 
                 Button(action: {
                     if showMouthAnimation {
@@ -149,25 +167,49 @@ struct CanvasView: View {
                             .frame(width: 100, height: 100)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("描いたイラストの説明")
-                                .font(.title3)
-                                .fontWeight(.bold)
+                            HStack {
+                                Text("AI会話")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                
+                                Spacer()
+                                
+                                // 接続状態インジケーター
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(webSocketManager.isConnected ? Color.green : Color.red)
+                                        .frame(width: 8, height: 8)
+                                    Text(connectionStatus)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                // AI発話中インジケーター
+                                if audioPlayer.isPlaying || webSocketManager.isAISpeaking {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "waveform")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                        Text("発話中")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
                             
                             ScrollView {
-                                Text("ここに描いたイラストの説明や、キャラクターからのメッセージが表示されます。\n\n自由に絵を描いて楽しんでください！")
-                                    .font(.body)
-                                    .foregroundColor(.primary)
+                                if aiTranscript.isEmpty {
+                                    Text("マイクボタンをタップして会話を開始してください 🎤")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    Text(aiTranscript)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        
-//                        Button(action: {
-//                            // アクション
-//                        }) {
-//                            Image(systemName: "arrow.2.circlepath.circle")
-//                                .font(.title2)
-//                                .foregroundColor(.blue)
-//                        }
                     }
                     .padding()
                     .frame(height: geometry.size.height / 4)
@@ -178,24 +220,7 @@ struct CanvasView: View {
         .navigationTitle("お絵描き")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // WebSocketに接続
-            webSocketManager.connect()
-            
-            // マイクの音声データをWebSocketに送信
-            microphoneManager.onAudioData = { audioData in
-                webSocketManager.sendData(audioData)
-                print("Sent audio data: \(audioData.count) bytes")
-            }
-            
-            // WebSocket接続後、マイク録音を開始（接続を待つために遅延を長めに）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                if microphoneManager.hasPermission {
-                    microphoneManager.startRecording()
-                    print("Microphone recording started")
-                } else {
-                    print("Microphone permission not granted")
-                }
-            }
+            setupVoiceChat()
             
             if !canvasView.drawing.bounds.isEmpty {
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
@@ -204,13 +229,71 @@ struct CanvasView: View {
             }
         }
         .onDisappear {
-            // マイク録音を停止
-            microphoneManager.stopRecording()
-            print("Microphone stopped")
-            
-            // WebSocketを切断
-            webSocketManager.disconnect()
+            cleanupVoiceChat()
         }
+    }
+    
+    // MARK: - Voice Chat Setup
+    
+    private func setupVoiceChat() {
+        // WebSocketコールバックの設定
+        webSocketManager.onAudioDataReceived = { audioData in
+            // 受信した音声データを再生
+            audioPlayer.play(pcmData: audioData)
+        }
+        
+        webSocketManager.onTranscriptReceived = { text, isDone in
+            // 文字起こしテキストを表示
+            if isDone {
+                aiTranscript = text
+            } else {
+                aiTranscript = text + "..."
+            }
+        }
+        
+        webSocketManager.onStatusReceived = { status in
+            connectionStatus = status
+        }
+        
+        // WebSocketに接続
+        webSocketManager.connect()
+        connectionStatus = "接続中..."
+        
+        // マイクの音声データをWebSocketに送信
+        microphoneManager.onAudioData = { audioData in
+            webSocketManager.sendData(audioData)
+        }
+        
+        // WebSocket接続後、マイク録音を開始
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if webSocketManager.isConnected {
+                connectionStatus = "接続完了"
+                
+                if microphoneManager.hasPermission {
+                    microphoneManager.startRecording()
+                    print("✅ Microphone recording started")
+                } else {
+                    print("⚠️ Microphone permission not granted")
+                    connectionStatus = "マイク権限がありません"
+                }
+            } else {
+                connectionStatus = "接続失敗"
+            }
+        }
+    }
+    
+    private func cleanupVoiceChat() {
+        // マイク録音を停止
+        microphoneManager.stopRecording()
+        print("🎤 Microphone stopped")
+        
+        // 音声再生を停止
+        audioPlayer.stop()
+        print("🔊 Audio player stopped")
+        
+        // WebSocketを切断
+        webSocketManager.disconnect()
+        print("🔌 WebSocket disconnected")
     }
 
     /// 口を検出してアニメーションを開始
