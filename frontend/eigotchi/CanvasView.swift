@@ -20,6 +20,7 @@ struct CanvasView: View {
     @State private var showMouthAnimation = false
     @State private var isDetecting = false
     @State private var capturedScreenshot: UIImage?  // 検出に使ったスクリーンショット
+    @State private var hasDrawing = false  // キャンバスに描画があるか
 
     // 音声会話の状態
     @State private var aiTranscript: String = ""
@@ -96,13 +97,15 @@ struct CanvasView: View {
                     } else {
                         Image(systemName: "arrow.forward")
                             .font(.title2)
+                            .foregroundColor(hasDrawing ? .blue : .gray)
                     }
                 }
-                .disabled(isDetecting || canvasView.drawing.bounds.isEmpty)
+                .disabled(isDetecting || !hasDrawing)
                 Spacer().frame(width: 60)
                 
                 Button(action: {
                     canvasView.drawing = PKDrawing()
+                    hasDrawing = false
                     // アニメーション状態もリセット
                     stopMouthAnimation()
                 }) {
@@ -148,6 +151,9 @@ struct CanvasView: View {
                                 },
                                 onDrawEnd: {
                                     // 描画終了時の処理（必要に応じて）
+                                },
+                                onDrawingChanged: { hasContent in
+                                    hasDrawing = hasContent
                                 }
                             )
                             // ふわふわアニメーションは「DrawingCanvas（描画層）」にのみ適用
@@ -398,9 +404,10 @@ struct CanvasView: View {
 struct DrawingCanvas: UIViewRepresentable {
     @Binding var canvasView: PKCanvasView
     @Binding var toolPicker: PKToolPicker
-    
+
     var onDrawStart: () -> Void
     var onDrawEnd: () -> Void
+    var onDrawingChanged: ((Bool) -> Void)?  // 描画の有無が変更されたときのコールバック
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -447,6 +454,8 @@ struct DrawingCanvas: UIViewRepresentable {
         
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             print("Drawing data changed")
+            let hasContent = !canvasView.drawing.bounds.isEmpty
+            parent.onDrawingChanged?(hasContent)
         }
     }
 }
