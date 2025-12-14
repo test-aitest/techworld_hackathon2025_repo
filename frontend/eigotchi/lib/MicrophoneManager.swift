@@ -58,9 +58,9 @@ class MicrophoneManager: ObservableObject {
         }
         
         do {
-            // AVAudioSessionを設定してアクティブ化
+            // AVAudioSessionを設定してアクティブ化（録音と再生の両方をサポート）
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.record, mode: .measurement, options: [])
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true)
             
             let audioEngine = AVAudioEngine()
@@ -69,9 +69,9 @@ class MicrophoneManager: ObservableObject {
             
             print("Recording format: \(recordingFormat)")
             
-            // 16kHz, 16bit, mono に変換（必要に応じて調整）
+            // 24kHz, 16bit, mono に変換（OpenAI Realtime API用）
             let desiredFormat = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                             sampleRate: 16000,
+                                             sampleRate: 24000,
                                              channels: 1,
                                              interleaved: false)
             
@@ -177,12 +177,8 @@ class MicrophoneManager: ObservableObject {
         inputNode = nil
         audioFormat = nil
         
-        // AVAudioSessionを非アクティブ化
-        do {
-            try AVAudioSession.sharedInstance().setActive(false)
-        } catch {
-            print("Failed to deactivate audio session: \(error)")
-        }
+        // AVAudioSessionは他のコンポーネント（AudioPlayer）も使用している可能性があるため、
+        // ここでは非アクティブ化しない
         
         DispatchQueue.main.async {
             self.isRecording = false
