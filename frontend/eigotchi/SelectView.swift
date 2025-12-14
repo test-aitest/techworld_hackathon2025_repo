@@ -28,7 +28,7 @@ struct SelectView: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // Readingボタン
-                NavigationLink(destination: CanvasView()) {
+                NavigationLink(destination: ReadingCanvasView()) {
                     Image("select_reading")
                         .resizable()
                         .scaledToFit()
