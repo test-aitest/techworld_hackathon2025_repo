@@ -240,4 +240,73 @@ class GeminiService {
 
         return MouthDetection(boundingBox: boundingBox, confidence: 0.9)
     }
+
+    /// 画像に描かれているものを認識して説明を取得
+    func recognizeDrawing(in image: UIImage) async throws -> String {
+        // 画像をBase64エンコード
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            throw NSError(domain: "GeminiService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to JPEG"])
+        }
+
+        let base64Image = imageData.base64EncodedString()
+
+        // リクエストボディを構築
+        let requestBody: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        [
+                            "text": """
+                            この画像に描かれているものは何ですか？
+                            簡潔に日本語で1〜2文で説明してください。
+                            """
+                        ],
+                        [
+                            "inline_data": [
+                                "mime_type": "image/jpeg",
+                                "data": base64Image
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "generationConfig": [
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 200
+            ]
+        ]
+
+        // HTTPリクエストを作成
+        var request = URLRequest(url: URL(string: "\(endpoint)?key=\(apiKey)")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        // リクエスト送信
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "GeminiService", code: -2,
+                         userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "GeminiService", code: httpResponse.statusCode,
+                         userInfo: [NSLocalizedDescriptionKey: "API Error: \(errorMessage)"])
+        }
+
+        // レスポンスをパース
+        let geminiResponse = try JSONDecoder().decode(GeminiResponse.self, from: data)
+
+        guard let text = geminiResponse.candidates?.first?.content.parts.first?.text else {
+            throw NSError(domain: "GeminiService", code: -3,
+                         userInfo: [NSLocalizedDescriptionKey: "No text in response"])
+        }
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

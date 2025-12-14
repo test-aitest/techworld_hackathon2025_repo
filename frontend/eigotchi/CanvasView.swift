@@ -15,9 +15,6 @@ struct CanvasView: View {
     @StateObject private var microphoneManager = MicrophoneManager()
     @StateObject private var audioPlayer = AudioPlayer()
     
-    // アニメーション用の状態変数
-    @State private var isFloating = false
-
     // 口のアニメーション関連
     @State private var mouthDetection: MouthDetection?
     @State private var showMouthAnimation = false
@@ -27,6 +24,10 @@ struct CanvasView: View {
     // 音声会話の状態
     @State private var aiTranscript: String = ""
     @State private var connectionStatus: String = "未接続"
+
+    // 口のアニメーション制御用
+    @State private var userIsSpeaking = false
+    @State private var isGIFAnimating = true
 
     // TODO: APIキーを安全に管理してください（環境変数、Keychainなど）
     // テスト用のAPIキー（本番環境では絶対に使用しないでください）
@@ -65,8 +66,10 @@ struct CanvasView: View {
                 Button(action: {
                     if microphoneManager.isRecording {
                         microphoneManager.stopRecording()
+                        userIsSpeaking = false
                     } else {
                         microphoneManager.startRecording()
+                        userIsSpeaking = true
                     }
                 }) {
                     Image(systemName: microphoneManager.isRecording ? "mic.fill" : "mic.slash")
@@ -100,7 +103,6 @@ struct CanvasView: View {
                 
                 Button(action: {
                     canvasView.drawing = PKDrawing()
-                    isFloating = false
                     // アニメーション状態もリセット
                     stopMouthAnimation()
                 }) {
@@ -125,7 +127,14 @@ struct CanvasView: View {
                             // 口のアニメーション表示中（検出に使ったスクリーンショットを表示）
                             MouthAnimationViewWithImage(
                                 screenshot: screenshot,
-                                mouthDetection: mouthDetection
+                                mouthDetection: mouthDetection,
+                                openAIAPIKey: APIKeys.openAI,
+                                onSpeechComplete: {
+                                    // 音声再生完了時の処理
+                                    print("音声再生完了")
+                                },
+                                userIsSpeaking: $userIsSpeaking,
+                                isGIFAnimating: $isGIFAnimating
                             )
                             .id("animation") // ビューを識別
                             .transition(.opacity) // フェード効果
@@ -135,22 +144,16 @@ struct CanvasView: View {
                                 canvasView: $canvasView,
                                 toolPicker: $toolPicker,
                                 onDrawStart: {
-                                    withAnimation(.easeOut(duration: 0.1)) {
-                                        isFloating = false
-                                    }
+                                    // 描画開始時の処理（必要に応じて）
                                 },
                                 onDrawEnd: {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                        if !canvasView.drawing.bounds.isEmpty {
-                                            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                                                isFloating = true
-                                            }
-                                        }
-                                    }
+                                    // 描画終了時の処理（必要に応じて）
                                 }
                             )
                             // ふわふわアニメーションは「DrawingCanvas（描画層）」にのみ適用
-                            .offset(y: isFloating ? -10 : 0)
+                            // ユーザーが話している時に浮かぶ
+                            .offset(y: userIsSpeaking ? -10 : 0)
+                            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: userIsSpeaking)
                             .id("drawing") // ビューを識別
                             .transition(.opacity) // フェード効果
                         }
@@ -221,12 +224,6 @@ struct CanvasView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             setupVoiceChat()
-            
-            if !canvasView.drawing.bounds.isEmpty {
-                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                    isFloating = true
-                }
-            }
         }
         .onDisappear {
             cleanupVoiceChat()
@@ -268,9 +265,10 @@ struct CanvasView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             if webSocketManager.isConnected {
                 connectionStatus = "接続完了"
-                
+
                 if microphoneManager.hasPermission {
                     microphoneManager.startRecording()
+                    userIsSpeaking = true
                     print("✅ Microphone recording started")
                 } else {
                     print("⚠️ Microphone permission not granted")
@@ -285,6 +283,7 @@ struct CanvasView: View {
     private func cleanupVoiceChat() {
         // マイク録音を停止
         microphoneManager.stopRecording()
+        userIsSpeaking = false
         print("🎤 Microphone stopped")
         
         // 音声再生を停止
