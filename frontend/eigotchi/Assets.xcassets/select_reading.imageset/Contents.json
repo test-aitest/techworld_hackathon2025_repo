@@ -1,0 +1,21 @@
+{
+  "images" : [
+    {
+      "filename" : "Gemini_Generated_Image_g41pi8g41pi8g41p.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "3x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
