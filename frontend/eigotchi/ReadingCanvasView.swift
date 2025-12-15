@@ -19,7 +19,7 @@ struct ReadingCanvasView: View {
     @State private var hasDrawing = false  // 描画があるかどうか
 
     // Gemini API設定
-    private let geminiAPIKey = "AIzaSyCFEjaPsldMJPhkuvKvtAKD9hGV8dyoL7g"
+    private let geminiAPIKey = APIKeys.gemini
 
     var body: some View {
         VStack(spacing: 0) {

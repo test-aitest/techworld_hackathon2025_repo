@@ -42,7 +42,7 @@ class GeminiService {
     }
 
     /// 画像から口の位置を検出
-    func    detectMouth(in image: UIImage) async throws -> MouthDetection? {
+    func detectMouth(in image: UIImage) async throws -> MouthDetection? {
         // 画像をBase64エンコード
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw NSError(domain: "GeminiService", code: -1,

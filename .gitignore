@@ -42,3 +42,5 @@ build/
 
 # macOS
 .DS_Store
+
+.xcconfig

@@ -10,9 +10,22 @@
 		9AA06F562EED57C20041681C /* eigotchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = eigotchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		400B3DD82EF0502E006FCB48 /* Exceptions for "eigotchi" folder in "eigotchi" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9AA06F552EED57C20041681C /* eigotchi */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9AA06F582EED57C20041681C /* eigotchi */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				400B3DD82EF0502E006FCB48 /* Exceptions for "eigotchi" folder in "eigotchi" target */,
+			);
 			path = eigotchi;
 			sourceTree = "<group>";
 		};
@@ -127,6 +140,8 @@
 /* Begin XCBuildConfiguration section */
 		9AA06F5F2EED57C20041681C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 9AA06F582EED57C20041681C /* eigotchi */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -190,6 +205,8 @@
 		};
 		9AA06F602EED57C20041681C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 9AA06F582EED57C20041681C /* eigotchi */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -254,6 +271,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = eigotchi/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "このアプリは音声入力機能を使用して、あなたの声を録音します。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "描画したイラストの検出精度を確認するため、スクリーンショットを保存します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -290,6 +308,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = eigotchi/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "このアプリは音声入力機能を使用して、あなたの声を録音します。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "描画したイラストの検出精度を確認するため、スクリーンショットを保存します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

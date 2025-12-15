@@ -102,7 +102,17 @@ const handleAudioData = (ws: WebSocket, audioData: Buffer): void => {
 /**
  * テキストメッセージを処理
  */
-const handleTextMessage = (_ws: WebSocket, message: any): void => {
-  // 必要に応じてテキストメッセージの処理を追加
+const handleTextMessage = (ws: WebSocket, message: any): void => {
   console.log('ℹ️ テキストメッセージ処理:', message);
+
+  // ai_initiateメッセージを処理
+  if (message.type === 'ai_initiate') {
+    console.log('🤖 AIから話しかけてもらうリクエストを受信しました');
+    const realtimeService = realtimeServices.get(ws);
+    if (realtimeService) {
+      realtimeService.initiateAIConversation();
+    } else {
+      console.warn('⚠️ RealtimeServiceが見つかりません');
+    }
+  }
 };

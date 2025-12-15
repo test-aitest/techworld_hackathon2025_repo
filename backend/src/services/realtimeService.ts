@@ -290,6 +290,33 @@ Safety:
   }
 
   /**
+   * AIから話しかけてもらう
+   */
+  initiateAIConversation(): void {
+    if (!this.openaiWs || !this.isConnected) {
+      console.warn('⚠️ OpenAI APIに未接続です');
+      return;
+    }
+
+    try {
+      // response.createイベントを送信してAIに話しかけてもらう
+      const responseCreate = {
+        type: 'response.create',
+        response: {
+          modalities: ['text', 'audio'],
+          instructions: 'Greet the user in a friendly way and ask them a simple question to start the conversation. Keep it very short and simple for young children.',
+        },
+      };
+
+      this.openaiWs.send(JSON.stringify(responseCreate));
+      console.log('🤖 AIに話しかけてもらうリクエストを送信しました');
+    } catch (error) {
+      console.error('❌ AI会話開始エラー:', error);
+      this.sendErrorToClient('Failed to initiate AI conversation');
+    }
+  }
+
+  /**
    * 接続をクリーンアップ
    */
   cleanup(): void {

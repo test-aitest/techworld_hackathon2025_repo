@@ -39,22 +39,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "327FBAD1-1C83-44E8-94AD-45F532924624"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "eigotchi/MouthAnimationView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "246"
-            endingLineNumber = "246"
-            landmarkName = "MouthAnimationView"
-            landmarkType = "14">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "B5D5BD33-9AA9-48B4-84AF-1277695FE4B8"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
@@ -71,17 +55,47 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "E66C64A5-8B47-46FC-B61D-0B91B8D891A6"
+            uuid = "F50B928E-7875-4005-A9E3-0FA2281D8324"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "eigotchi/MouthAnimationView.swift"
+            filePath = "eigotchi/CanvasView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "234"
-            endingLineNumber = "234"
-            landmarkName = "body"
-            landmarkType = "24">
+            startingLineNumber = "274"
+            endingLineNumber = "274"
+            landmarkName = "setupVoiceChat()"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "F50B928E-7875-4005-A9E3-0FA2281D8324 - 1d6ceb46f7092004"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #5 @Swift.MainActor () -&gt; () in eigotchi.CanvasView.setupVoiceChat() -&gt; ()"
+                  moduleName = "eigotchi.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/yabetatuki/lesson/techworld_hackathon2025_repo/frontend/eigotchi/CanvasView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "275"
+                  endingLineNumber = "275">
+               </Location>
+               <Location
+                  uuid = "F50B928E-7875-4005-A9E3-0FA2281D8324 - 1d6ceb46f7092065"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #5 @Swift.MainActor () -&gt; () in eigotchi.CanvasView.setupVoiceChat() -&gt; ()"
+                  moduleName = "eigotchi.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/yabetatuki/lesson/techworld_hackathon2025_repo/frontend/eigotchi/CanvasView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "276"
+                  endingLineNumber = "276">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

@@ -158,34 +158,34 @@ struct MouthAnimationViewWithImage: View {
         .onAppear {
             startMouthAnimation()
 
-            // OpenAI TTSで「こんにちは」を再生
-            if let apiKey = openAIAPIKey {
-                ttsService = OpenAITTSService(apiKey: apiKey)
-                Task {
-                    do {
-                        try await ttsService?.speak(text: "こんにちは") {
-                            // 音声再生が終了したらGIFアニメーションを停止（ビューは表示したまま）
-                            self.isGIFAnimating = false
-
-                            // 少し待ってから催促メッセージを表示
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                                    self.showPromptMessage = true
-                                }
-
-                                // 5秒後にメッセージを自動的に消す
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                                        self.showPromptMessage = false
-                                    }
-                                }
-                            }
-                        }
-                    } catch {
-                        print("TTS エラー: \(error)")
-                    }
-                }
-            }
+//            // OpenAI TTSで「こんにちは」を再生
+//            if let apiKey = openAIAPIKey {
+//                ttsService = OpenAITTSService(apiKey: apiKey)
+//                Task {
+//                    do {
+//                        try await ttsService?.speak(text: "こんにちは") {
+//                            // 音声再生が終了したらGIFアニメーションを停止（ビューは表示したまま）
+//                            self.isGIFAnimating = false
+//
+//                            // 少し待ってから催促メッセージを表示
+//                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+//                                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+//                                    self.showPromptMessage = true
+//                                }
+//
+//                                // 5秒後にメッセージを自動的に消す
+//                                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+//                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+//                                        self.showPromptMessage = false
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    } catch {
+//                        print("TTS エラー: \(error)")
+//                    }
+//                }
+//            }
         }
         .onDisappear {
             isAnimating = false
@@ -301,19 +301,19 @@ struct MouthAnimationView: View {
             startMouthAnimation()
 
             // OpenAI TTSで「こんにちは」を再生
-            if let apiKey = openAIAPIKey {
-                ttsService = OpenAITTSService(apiKey: apiKey)
-                Task {
-                    do {
-                        try await ttsService?.speak(text: "こんにちは") {
-                            // 音声再生が終了したらスケールアニメーションを停止（ビューは表示したまま）
-                            self.isAnimating = false
-                        }
-                    } catch {
-                        print("TTS エラー: \(error)")
-                    }
-                }
-            }
+//            if let apiKey = openAIAPIKey {
+//                ttsService = OpenAITTSService(apiKey: apiKey)
+//                Task {
+//                    do {
+//                        try await ttsService?.speak(text: "こんにちは") {
+//                            // 音声再生が終了したらスケールアニメーションを停止（ビューは表示したまま）
+//                            self.isAnimating = false
+//                        }
+//                    } catch {
+//                        print("TTS エラー: \(error)")
+//                    }
+//                }
+//            }
         }
         .onDisappear {
             isAnimating = false

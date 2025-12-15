@@ -62,6 +62,7 @@ class WebSocketManager: ObservableObject {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
+        isAISpeaking = false
     }
     
     func sendMessage(_ message: String) {

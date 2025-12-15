@@ -30,9 +30,7 @@ struct CanvasView: View {
     @State private var userIsSpeaking = false
     @State private var isGIFAnimating = true
 
-    // TODO: APIキーを安全に管理してください（環境変数、Keychainなど）
-    // テスト用のAPIキー（本番環境では絶対に使用しないでください）
-    private let geminiAPIKey = "AIzaSyCFEjaPsldMJPhkuvKvtAKD9hGV8dyoL7g"
+    private let geminiAPIKey = APIKeys.gemini
 
     // デバッグ用: スクリーンショットをフォトライブラリに保存するか
     // true にすると、口の検出時に画像が自動保存されます
@@ -68,6 +66,7 @@ struct CanvasView: View {
                     if microphoneManager.isRecording {
                         microphoneManager.stopRecording()
                         userIsSpeaking = false
+                        cleanupVoiceChat()
                     } else {
                         microphoneManager.startRecording()
                         userIsSpeaking = true
@@ -108,6 +107,7 @@ struct CanvasView: View {
                     hasDrawing = false
                     // アニメーション状態もリセット
                     stopMouthAnimation()
+                    cleanupVoiceChat()
                 }) {
                     Image(systemName: "trash")
                         .font(.title2)
@@ -139,6 +139,9 @@ struct CanvasView: View {
                                 userIsSpeaking: $userIsSpeaking,
                                 isGIFAnimating: $isGIFAnimating
                             )
+                            // ふわふわアニメーションを追加
+                            .offset(y: userIsSpeaking ? -10 : 0)
+                            .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: userIsSpeaking)
                             .id("animation") // ビューを識別
                             .transition(.opacity) // フェード効果
                         } else {
@@ -228,9 +231,6 @@ struct CanvasView: View {
         }
         .navigationTitle("お絵描き")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            setupVoiceChat()
-        }
         .onDisappear {
             cleanupVoiceChat()
         }
@@ -267,10 +267,20 @@ struct CanvasView: View {
             webSocketManager.sendData(audioData)
         }
         
-        // WebSocket接続後、マイク録音を開始
+        // WebSocket接続後、AIに話しかけてもらう
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             if webSocketManager.isConnected {
                 connectionStatus = "接続完了"
+
+                // AIに話しかけてもらうトリガーメッセージを送信
+                let triggerMessage = """
+                {
+                    "type": "ai_initiate",
+                    "message": "AIから話しかけてください"
+                }
+                """
+                webSocketManager.sendMessage(triggerMessage)
+                print("🤖 AI initiation trigger sent")
 
                 if microphoneManager.hasPermission {
                     microphoneManager.startRecording()
@@ -291,14 +301,18 @@ struct CanvasView: View {
         microphoneManager.stopRecording()
         userIsSpeaking = false
         print("🎤 Microphone stopped")
-        
+
         // 音声再生を停止
         audioPlayer.stop()
         print("🔊 Audio player stopped")
-        
+
         // WebSocketを切断
         webSocketManager.disconnect()
         print("🔌 WebSocket disconnected")
+
+        // UI状態をリセット
+        aiTranscript = ""
+        connectionStatus = "未接続"
     }
 
     /// 口を検出してアニメーションを開始
@@ -359,6 +373,8 @@ struct CanvasView: View {
                 withAnimation {
                     self.showMouthAnimation = true
                 }
+                
+                setupVoiceChat()
             } else {
                 print("⚠️ 口が検出できませんでした")
             }
