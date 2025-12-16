@@ -28,7 +28,7 @@ struct CanvasView: View {
 
     // 口のアニメーション制御用
     @State private var userIsSpeaking = false
-    @State private var isGIFAnimating = true
+    @State private var isGIFAnimating = false  // 初期状態は口を閉じる
 
     private let geminiAPIKey = APIKeys.gemini
 
@@ -234,6 +234,19 @@ struct CanvasView: View {
         .onDisappear {
             cleanupVoiceChat()
         }
+        .onChange(of: webSocketManager.isAISpeaking) { _, newValue in
+            // AIが話している時は口を動かし、話していない時は閉じる
+            isGIFAnimating = newValue
+        }
+        .onChange(of: audioPlayer.isPlaying) { _, newValue in
+            // 音声再生中も口を動かす
+            if newValue {
+                isGIFAnimating = true
+            } else if !webSocketManager.isAISpeaking {
+                // 音声再生が終わり、AIも話していない場合は口を閉じる
+                isGIFAnimating = false
+            }
+        }
     }
     
     // MARK: - Voice Chat Setup
@@ -256,6 +269,14 @@ struct CanvasView: View {
         
         webSocketManager.onStatusReceived = { status in
             connectionStatus = status
+
+            // 最初の挨拶が完了したらマイク録音を開始
+            if status == "Initial greeting completed" {
+                if microphoneManager.hasPermission {
+                    microphoneManager.startRecording()
+                    userIsSpeaking = true
+                }
+            }
         }
         
         // WebSocketに接続
@@ -280,14 +301,9 @@ struct CanvasView: View {
                 }
                 """
                 webSocketManager.sendMessage(triggerMessage)
-                print("🤖 AI initiation trigger sent")
 
-                if microphoneManager.hasPermission {
-                    microphoneManager.startRecording()
-                    userIsSpeaking = true
-                    print("✅ Microphone recording started")
-                } else {
-                    print("⚠️ Microphone permission not granted")
+                // マイク録音はAIの挨拶が完了してから開始する（onStatusReceivedで処理）
+                if !microphoneManager.hasPermission {
                     connectionStatus = "マイク権限がありません"
                 }
             } else {
@@ -300,23 +316,27 @@ struct CanvasView: View {
         // マイク録音を停止
         microphoneManager.stopRecording()
         userIsSpeaking = false
-        print("🎤 Microphone stopped")
 
         // 音声再生を停止
         audioPlayer.stop()
-        print("🔊 Audio player stopped")
 
         // WebSocketを切断
         webSocketManager.disconnect()
-        print("🔌 WebSocket disconnected")
 
         // UI状態をリセット
         aiTranscript = ""
         connectionStatus = "未接続"
+        isGIFAnimating = false  // 口を閉じる
     }
 
     /// 口を検出してアニメーションを開始
     private func detectAndAnimateMouth() {
+        // 既存の録音を停止
+        if microphoneManager.isRecording {
+            microphoneManager.stopRecording()
+            userIsSpeaking = false
+        }
+
         Task {
             await performMouthDetection()
         }
@@ -328,6 +348,7 @@ struct CanvasView: View {
             showMouthAnimation = false
             mouthDetection = nil
             capturedScreenshot = nil
+            isGIFAnimating = false  // 口を閉じる
         }
     }
 
@@ -362,11 +383,7 @@ struct CanvasView: View {
         // Gemini APIで口を検出
         let service = GeminiService(apiKey: geminiAPIKey)
         do {
-            print("🔍 口の検出を開始...")
-            print("📏 画像サイズ: \(screenshot.size.width) x \(screenshot.size.height)")
-
             if let detection = try await service.detectMouth(in: screenshot) {
-                print("✅ 口を検出しました（Y:\(detection.boundingBox.midY)）")
 
                 self.capturedScreenshot = screenshot  // スクリーンショットを保存
                 self.mouthDetection = detection
@@ -375,44 +392,26 @@ struct CanvasView: View {
                 }
                 
                 setupVoiceChat()
-            } else {
-                print("⚠️ 口が検出できませんでした")
             }
         } catch {
-            print("❌ エラー: \(error)")
-            print("🔧 エラー詳細: \(error.localizedDescription)")
-            // エラーアラートを表示（オプション）
+            // エラーハンドリング
         }
     }
 
     /// キャンバスのスクリーンショットを取得
     private func captureCanvasScreenshot() -> UIImage? {
         let bounds = canvasView.bounds
-
-        // UIGraphicsImageRendererを使用してスクリーンショットを取得
         let renderer = UIGraphicsImageRenderer(bounds: bounds)
         let screenshot = renderer.image { context in
             canvasView.drawHierarchy(in: bounds, afterScreenUpdates: true)
         }
-
         return screenshot
     }
 
     /// デバッグ用: 画像をフォトライブラリに保存
-    /// 注意: Info.plistに以下の権限が必要です
-    /// - Privacy - Photo Library Additions Usage Description
     private func saveImageToPhotos(_ image: UIImage) {
-        // フォトライブラリへのアクセス権限がない場合、クラッシュを防ぐ
-        // この機能を使用する場合は、Xcodeでプロジェクト設定のInfoタブから
-        // "Privacy - Photo Library Additions Usage Description" を追加してください
-        do {
-            // セレクタを使って安全にチェック
-            if UIImageWriteToSavedPhotosAlbum.self != nil {
-                UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                print("💾 スクリーンショットをフォトライブラリに保存しました")
-            }
-        } catch {
-            print("⚠️ 画像の保存に失敗しました: \(error)")
+        if UIImageWriteToSavedPhotosAlbum.self != nil {
+            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
         }
     }
 }

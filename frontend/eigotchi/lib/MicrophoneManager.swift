@@ -73,7 +73,7 @@ class MicrophoneManager: ObservableObject {
             let desiredFormat = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                              sampleRate: 24000,
                                              channels: 1,
-                                             interleaved: false)
+                                             interleaved: true)
             
             guard let format = desiredFormat else {
                 errorMessage = "音声フォーマットの設定に失敗しました"
@@ -114,35 +114,35 @@ class MicrophoneManager: ObservableObject {
                     }
                     
                     converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
-                    
+
                     if let error = error {
                         print("Audio conversion error: \(error)")
                         return
                     }
-                    
-                    // PCMデータをDataに変換
-                    guard let channelData = convertedBuffer.int16ChannelData else {
+
+                    // PCMデータをDataに変換（interleaved形式）
+                    let audioBuffer = convertedBuffer.audioBufferList.pointee.mBuffers
+                    guard let audioData = audioBuffer.mData else {
                         return
                     }
-                    
-                    let channelDataValue = channelData.pointee
-                    let frameLength = Int(convertedBuffer.frameLength)
-                    let data = Data(bytes: channelDataValue, count: frameLength * 2)
-                    
+
+                    let dataSize = Int(audioBuffer.mDataByteSize)
+                    let data = Data(bytes: audioData, count: dataSize)
+
                     // コールバックでデータを送信
                     DispatchQueue.main.async {
                         self.onAudioData?(data)
                     }
                 } else {
                     // フォーマット変換が不要な場合、直接データを取得
-                    guard let channelData = buffer.int16ChannelData else {
+                    let audioBuffer = buffer.audioBufferList.pointee.mBuffers
+                    guard let audioData = audioBuffer.mData else {
                         return
                     }
-                    
-                    let channelDataValue = channelData.pointee
-                    let frameLength = Int(buffer.frameLength)
-                    let data = Data(bytes: channelDataValue, count: frameLength * 2)
-                    
+
+                    let dataSize = Int(audioBuffer.mDataByteSize)
+                    let data = Data(bytes: audioData, count: dataSize)
+
                     // コールバックでデータを送信
                     DispatchQueue.main.async {
                         self.onAudioData?(data)

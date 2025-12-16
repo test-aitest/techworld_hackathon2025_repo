@@ -26,17 +26,18 @@ export const handleWebSocketConnection = async (ws: WebSocket, apiKey: string): 
 
     // メッセージ受信時の処理
     ws.on('message', (data: Buffer | string, isBinary: boolean) => {
-      if (isBinary || Buffer.isBuffer(data)) {
+      // isBinaryフラグを優先的にチェック
+      if (isBinary) {
         // バイナリデータ（音声）の場合
         handleAudioData(ws, data as Buffer);
       } else {
-        // テキストメッセージの場合
+        // テキストメッセージの場合（BufferをStringに変換）
+        const textData = Buffer.isBuffer(data) ? data.toString('utf-8') : data;
         try {
-          const json = JSON.parse(data as string);
-          console.log('📩 テキストメッセージ受信:', json);
+          const json = JSON.parse(textData);
           handleTextMessage(ws, json);
         } catch (e) {
-          console.log('📩 テキストメッセージ受信:', data);
+          console.error('❌ JSONパースエラー:', e);
         }
       }
     });
@@ -67,6 +68,11 @@ export const handleWebSocketConnection = async (ws: WebSocket, apiKey: string): 
 const handleAudioData = (ws: WebSocket, audioData: Buffer): void => {
   const audioSize = audioData.length;
 
+  // 小さすぎるデータ（ノイズ/初期化データ）は無視
+  if (audioSize < 100) {
+    return;
+  }
+
   if (audioSize === 0) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -75,27 +81,10 @@ const handleAudioData = (ws: WebSocket, audioData: Buffer): void => {
     return;
   }
 
-  console.log('====================================');
-  console.log(`🎤 音声データ受信`);
-  console.log(`時刻: ${new Date().toISOString()}`);
-  console.log(`データサイズ: ${audioSize} bytes (${(audioSize / 1024).toFixed(2)} KB)`);
-
-  // PCM 16bit (2 bytes per sample) と仮定
-  const sampleCount = audioSize / 2;
-  const durationMs = (sampleCount / 24000) * 1000; // 24kHz sampling rate
-  console.log(`音声長さ: ${durationMs.toFixed(2)} ms`);
-  console.log('====================================\n');
-
   // OpenAI Realtime APIに音声データを送信
   const realtimeService = realtimeServices.get(ws);
   if (realtimeService) {
     realtimeService.sendAudioToOpenAI(audioData);
-  } else {
-    console.warn('⚠️ RealtimeServiceが見つかりません');
-    ws.send(JSON.stringify({
-      type: 'error',
-      message: 'Realtime service not initialized'
-    }));
   }
 };
 
@@ -103,16 +92,11 @@ const handleAudioData = (ws: WebSocket, audioData: Buffer): void => {
  * テキストメッセージを処理
  */
 const handleTextMessage = (ws: WebSocket, message: any): void => {
-  console.log('ℹ️ テキストメッセージ処理:', message);
-
   // ai_initiateメッセージを処理
   if (message.type === 'ai_initiate') {
-    console.log('🤖 AIから話しかけてもらうリクエストを受信しました');
     const realtimeService = realtimeServices.get(ws);
     if (realtimeService) {
       realtimeService.initiateAIConversation();
-    } else {
-      console.warn('⚠️ RealtimeServiceが見つかりません');
     }
   }
 };

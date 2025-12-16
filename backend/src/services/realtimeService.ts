@@ -11,6 +11,7 @@ export class RealtimeService {
   private apiKey: string;
   private isConnected = false;
   private isAISpeaking = false; // AIが話している状態を追跡
+  private isInitialGreeting = false; // 最初の挨拶かどうか
 
   constructor(clientWs: WebSocket, apiKey: string) {
     this.clientWs = clientWs;
@@ -111,9 +112,9 @@ Safety:
         },
         turn_detection: {
           type: 'server_vad', // Voice Activity Detection を有効化
-          threshold: 0.5,
+          threshold: 0.6, // 閾値を上げてより確実な発話のみ検出
           prefix_padding_ms: 300,
-          silence_duration_ms: 700, // 無音期間を少し長くして誤検出を減らす
+          silence_duration_ms: 1500, // 1.5秒の無音でユーザーの発話終了と判断
         },
         temperature: 0.8,
         max_response_output_tokens: 4096,
@@ -121,7 +122,6 @@ Safety:
     };
 
     this.openaiWs.send(JSON.stringify(sessionConfig));
-    console.log('📤 セッション設定を送信しました');
   }
 
   /**
@@ -129,13 +129,11 @@ Safety:
    */
   sendAudioToOpenAI(audioData: Buffer): void {
     if (!this.openaiWs || !this.isConnected) {
-      console.warn('⚠️ OpenAI APIに未接続です');
       return;
     }
 
     // AIが話している最中は新しい音声入力を無視
     if (this.isAISpeaking) {
-      console.log('🔇 AI応答中のため音声入力をスキップします');
       return;
     }
 
@@ -149,10 +147,8 @@ Safety:
       };
 
       this.openaiWs.send(JSON.stringify(audioMessage));
-      console.log(`📤 音声データ送信: ${audioData.length} bytes`);
     } catch (error) {
       console.error('❌ 音声送信エラー:', error);
-      this.sendErrorToClient('Failed to send audio to OpenAI');
     }
   }
 
@@ -162,7 +158,6 @@ Safety:
   private handleOpenAIMessage(data: WebSocket.Data): void {
     try {
       const message = JSON.parse(data.toString());
-      console.log(`📥 OpenAI メッセージ: ${message.type}`);
 
       switch (message.type) {
         case 'session.created':
@@ -182,11 +177,9 @@ Safety:
           break;
 
         case 'input_audio_buffer.committed':
-          console.log('🎤 音声バッファがコミットされました');
           break;
 
         case 'conversation.item.created':
-          console.log('💬 会話アイテムが作成されました');
           break;
 
         case 'response.audio_transcript.delta':
@@ -208,7 +201,6 @@ Safety:
           // 最初の音声データを受信したらAIが話し始めたとマーク
           if (!this.isAISpeaking) {
             this.isAISpeaking = true;
-            console.log('🗣️ AIが話し始めました');
           }
           if (message.delta) {
             const audioBuffer = Buffer.from(message.delta, 'base64');
@@ -217,15 +209,18 @@ Safety:
           break;
 
         case 'response.audio.done':
-          console.log('🔊 音声応答が完了しました');
           this.sendStatusToClient('Response completed');
           break;
 
         case 'response.done':
-          console.log('✅ 応答処理が完了しました');
           // AIの話が完了したらフラグをリセット
           this.isAISpeaking = false;
-          console.log('🤐 AIが話し終わりました');
+
+          // 最初の挨拶が完了した場合、特別な通知を送る
+          if (this.isInitialGreeting) {
+            this.isInitialGreeting = false;
+            this.sendStatusToClient('Initial greeting completed');
+          }
           break;
 
         case 'error':
@@ -248,7 +243,6 @@ Safety:
     if (this.clientWs.readyState === WebSocket.OPEN) {
       // バイナリデータとして送信
       this.clientWs.send(audioData);
-      console.log(`📤 クライアントに音声送信: ${audioData.length} bytes`);
     }
   }
 
@@ -294,11 +288,13 @@ Safety:
    */
   initiateAIConversation(): void {
     if (!this.openaiWs || !this.isConnected) {
-      console.warn('⚠️ OpenAI APIに未接続です');
       return;
     }
 
     try {
+      // 最初の挨拶フラグを立てる
+      this.isInitialGreeting = true;
+
       // response.createイベントを送信してAIに話しかけてもらう
       const responseCreate = {
         type: 'response.create',
@@ -309,10 +305,8 @@ Safety:
       };
 
       this.openaiWs.send(JSON.stringify(responseCreate));
-      console.log('🤖 AIに話しかけてもらうリクエストを送信しました');
     } catch (error) {
       console.error('❌ AI会話開始エラー:', error);
-      this.sendErrorToClient('Failed to initiate AI conversation');
     }
   }
 

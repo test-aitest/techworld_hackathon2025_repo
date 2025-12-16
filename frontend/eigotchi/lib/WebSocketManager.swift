@@ -70,7 +70,7 @@ class WebSocketManager: ObservableObject {
             connectionError = "WebSocket is not connected"
             return
         }
-        
+
         let message = URLSessionWebSocketTask.Message.string(message)
         webSocketTask.send(message) { error in
             if let error = error {
@@ -83,15 +83,13 @@ class WebSocketManager: ObservableObject {
     
     func sendData(_ data: Data) {
         guard let webSocketTask = webSocketTask else {
-            print("WebSocket is not connected, cannot send data")
             connectionError = "WebSocket is not connected"
             return
         }
-        
+
         let message = URLSessionWebSocketTask.Message.data(data)
         webSocketTask.send(message) { error in
             if let error = error {
-                print("Send data error: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     self.connectionError = "Send error: \(error.localizedDescription)"
                 }
@@ -148,7 +146,6 @@ class WebSocketManager: ObservableObject {
         switch type {
         case "status":
             if let message = json["message"] as? String {
-                print("📢 Status: \(message)")
                 onStatusReceived?(message)
                 
                 // AIの発話状態を更新
@@ -163,19 +160,17 @@ class WebSocketManager: ObservableObject {
             // 文字起こしテキストを受信
             if let text = json["text"] as? String,
                let isDone = json["isDone"] as? Bool {
-                print("📝 Transcript: \(text) (done: \(isDone))")
                 lastTranscript = text
                 onTranscriptReceived?(text, isDone)
             }
-            
+
         case "error":
             if let message = json["message"] as? String {
-                print("❌ Error: \(message)")
                 connectionError = message
             }
-            
+
         default:
-            print("ℹ️ Unknown message type: \(type)")
+            break
         }
     }
     
