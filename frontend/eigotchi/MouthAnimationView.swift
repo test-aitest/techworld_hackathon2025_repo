@@ -16,7 +16,7 @@ struct GIFImageView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIImageView {
         let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFit
+        imageView.contentMode = .scaleAspectFill  // アスペクト比を保ちながら領域全体を覆う
         imageView.clipsToBounds = true
         return imageView
     }
@@ -113,23 +113,23 @@ struct MouthAnimationViewWithImage: View {
 
                 // 口の部分を検出できた場合、アニメーションレイヤーを追加
                 if let mouth = mouthDetection {
-                    // 1. 元の口を白で隠す
+                    // 1. 赤色領域を白で隠す（マージンなし、赤色領域と同じサイズ）
                     Rectangle()
                         .fill(Color.white)
                         .frame(
-                            width: mouth.boundingBox.width * geometry.size.width,
-                            height: mouth.boundingBox.height * geometry.size.height
+                            width: mouth.redAreaBounds.width * geometry.size.width,
+                            height: mouth.redAreaBounds.height * geometry.size.height
                         )
                         .position(
-                            x: mouth.boundingBox.midX * geometry.size.width,
-                            y: mouth.boundingBox.midY * geometry.size.height
+                            x: mouth.redAreaBounds.midX * geometry.size.width,
+                            y: mouth.redAreaBounds.midY * geometry.size.height
                         )
                         .zIndex(1)
 
-                    // 2. アニメーションする口を表示
+                    // 2. アニメーションする口を表示（マージンなし、赤色領域と同じサイズに拡大縮小）
                     MouthOverlayViewForImage(
                         screenshot: screenshot,
-                        mouthBounds: mouth.boundingBox,
+                        mouthDetection: mouth,
                         scale: mouthScale,
                         canvasSize: geometry.size,
                         isGIFAnimating: isGIFAnimating
@@ -215,23 +215,26 @@ struct MouthAnimationViewWithImage: View {
 /// GIF画像を使った口アニメーション
 struct MouthOverlayViewForImage: View {
     let screenshot: UIImage
-    let mouthBounds: CGRect  // 正規化座標 (0.0-1.0)
+    let mouthDetection: MouthDetection
     let scale: CGFloat
     let canvasSize: CGSize
     let isGIFAnimating: Bool
 
     var body: some View {
         GeometryReader { geometry in
+            // 顔の種類に応じてGIFを選択
+            let gifName = mouthDetection.faceType == .human ? "animated_mouth2" : "animated_cat_mouth"
+
             // AssetsからGIFアニメーションを読み込み
-            GIFImageView(gifName: "animated_mouth2", isAnimating: isGIFAnimating)
+            GIFImageView(gifName: gifName, isAnimating: isGIFAnimating)
                 .frame(
-                    width: mouthBounds.width * geometry.size.width,
-                    height: mouthBounds.height * geometry.size.height
+                    width: mouthDetection.boundingBox.width * geometry.size.width,
+                    height: mouthDetection.boundingBox.height * geometry.size.height
                 )
                 .scaleEffect(y: scale, anchor: .center)
                 .position(
-                    x: mouthBounds.midX * geometry.size.width,
-                    y: mouthBounds.midY * geometry.size.height
+                    x: mouthDetection.boundingBox.midX * geometry.size.width,
+                    y: mouthDetection.boundingBox.midY * geometry.size.height
                 )
         }
     }

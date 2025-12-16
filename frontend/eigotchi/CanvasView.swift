@@ -362,35 +362,42 @@ struct CanvasView: View {
         // Canvas描画を確認
         let drawing = canvasView.drawing
         guard !drawing.bounds.isEmpty else {
-            print("描画が空です")
             return
         }
 
         // 実際に画面に表示されているキャンバスのスクリーンショットを取得
         guard let screenshot = captureCanvasScreenshot() else {
-            print("❌ スクリーンショットの取得に失敗しました")
             return
         }
-
-        // デバッグ: 画像サイズを出力
-        print("📸 スクリーンショットサイズ: \(screenshot.size)")
 
         // オプション: スクリーンショットを保存（デバッグ用）
         if shouldSaveScreenshotForDebug {
             saveImageToPhotos(screenshot)
         }
 
-        // Gemini APIで口を検出
+        // 直接赤色ピクセルを検出
+        guard let redAreaBounds = RedColorDetector.detectRedArea(in: screenshot) else {
+            return
+        }
+
+        // Gemini APIで顔の種類のみを判定
         let service = GeminiService(apiKey: geminiAPIKey)
         do {
             if let detection = try await service.detectMouth(in: screenshot) {
+                // Gemini APIの検出結果の赤色領域を、直接検出した赤色領域で置き換え
+                let correctedDetection = MouthDetection(
+                    boundingBox: redAreaBounds,
+                    confidence: detection.confidence,
+                    faceType: detection.faceType,
+                    redAreaBounds: redAreaBounds
+                )
 
-                self.capturedScreenshot = screenshot  // スクリーンショットを保存
-                self.mouthDetection = detection
+                self.capturedScreenshot = screenshot
+                self.mouthDetection = correctedDetection
                 withAnimation {
                     self.showMouthAnimation = true
                 }
-                
+
                 setupVoiceChat()
             }
         } catch {
@@ -468,7 +475,6 @@ struct DrawingCanvas: UIViewRepresentable {
         }
         
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            print("Drawing data changed")
             let hasContent = !canvasView.drawing.bounds.isEmpty
             parent.onDrawingChanged?(hasContent)
         }
